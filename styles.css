@@ -1,0 +1,22 @@
+* { box-sizing: border-box; }
+:root { color-scheme: light; font-family: Inter, Arial, sans-serif; }
+body { margin: 0; color: #172033; background: #f4f7fb; }
+.hero { min-height: 420px; padding: 28px max(7vw, 24px) 70px; color: white;
+  background: linear-gradient(125deg, #102a56, #1768b5 65%, #4ca7d8); }
+.nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.brand { color: white; text-decoration: none; font-weight: 800; font-size: 1.35rem; }
+.tag { font-size: .88rem; opacity: .85; }
+.content { max-width: 760px; margin: 76px auto 0; }
+.eyebrow { letter-spacing: .16em; font-size: .75rem; font-weight: 700; color: #b9e2ff; }
+h1 { font-size: clamp(2.5rem, 7vw, 4.8rem); line-height: 1.02; margin: 14px 0 20px; }
+.intro { max-width: 620px; line-height: 1.7; font-size: 1.08rem; color: #e4f2ff; }
+.status { display: inline-flex; align-items: center; gap: 10px; margin-top: 20px;
+  padding: 10px 15px; border: 1px solid #9ed4ff80; border-radius: 999px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: #63e6a5; }
+.cards { max-width: 1040px; margin: -35px auto 60px; padding: 0 22px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+.card { background: white; padding: 25px; border-radius: 16px;
+  box-shadow: 0 12px 30px #17365d12; }
+.card h2 { margin-top: 0; color: #155a9c; }
+.card p { color: #596579; line-height: 1.65; }
+footer { text-align: center; padding: 25px; color: #6a7485; font-size: .88rem; }
