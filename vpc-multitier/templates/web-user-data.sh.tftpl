@@ -1,0 +1,40 @@
+#!/bin/bash
+set -euxo pipefail
+
+dnf update -y
+dnf install -y nginx mariadb105
+systemctl enable --now nginx
+
+cat >/usr/share/nginx/html/index.html <<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UNLOX VPC Multi-Tier Project</title>
+  <style>
+    body { margin: 0; font: 16px/1.6 Arial, sans-serif; color: #15233b; background: #f2f6fb; }
+    header { padding: 3rem 1.5rem; color: white; background: linear-gradient(120deg, #11315b, #176aa5); }
+    main { max-width: 760px; margin: 2rem auto; padding: 1.5rem; background: white; border-radius: 14px; }
+    code { color: #125a86; }
+  </style>
+</head>
+<body>
+  <header><h1>UNLOX Cloud Computing Project</h1><p>Secure AWS multi-tier network</p></header>
+  <main>
+    <h2>Public web tier is online</h2>
+    <p>This Nginx page is served from the public subnet of the UNLOX VPC.</p>
+    <p>The MariaDB database runs in the private subnet and is reachable only through approved security-group paths.</p>
+    <p>Database ingress is limited to the web-server and bastion security groups.</p>
+  </main>
+</body>
+</html>
+HTML
+
+cat >/home/ec2-user/verify-db.sh <<'SCRIPT'
+#!/bin/bash
+set -euo pipefail
+mysqladmin ping --host="${database_private_ip}" --port=3306 --connect-timeout=5
+SCRIPT
+chmod 755 /home/ec2-user/verify-db.sh
+chown ec2-user:ec2-user /home/ec2-user/verify-db.sh
