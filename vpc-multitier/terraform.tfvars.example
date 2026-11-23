@@ -1,6 +1,7 @@
-region              = "ap-southeast-2"
-project_name        = "unlox-vpc-project"
-key_name            = "YOUR_EC2_KEY_PAIR"
-admin_cidr          = "YOUR_CURRENT_PUBLIC_IP/32"
-instance_type       = "t3.micro"
-enable_nat_gateway  = true
+region                 = "ap-southeast-2"
+project_name           = "unlox-vpc-project"
+private_route_table_id = "rtb-08fa3c01f0a9d515c"
+key_name               = "UNLOX-EC2-KEY"
+admin_cidr             = "YOUR_CURRENT_PUBLIC_IP/32"
+instance_type          = "t3.micro"
+enable_nat_gateway     = true

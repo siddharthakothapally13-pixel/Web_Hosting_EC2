@@ -16,66 +16,19 @@ data "aws_ssm_parameter" "al2023_ami" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
+data "aws_instance" "web" {
+  instance_id = var.web_instance_id
+}
+
+data "aws_security_group" "web" {
+  id = var.web_security_group_id
+}
+
 locals {
   common_tags = {
     Project   = "UNLOX Cloud Computing Minor Project"
     ManagedBy = "Terraform"
   }
-}
-
-resource "aws_vpc" "project" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_support   = true
-  enable_dns_hostnames = true
-
-  tags = merge(local.common_tags, { Name = "${var.project_name}-vpc" })
-}
-
-resource "aws_internet_gateway" "project" {
-  vpc_id = aws_vpc.project.id
-  tags   = merge(local.common_tags, { Name = "${var.project_name}-igw" })
-}
-
-resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.project.id
-  cidr_block              = var.public_subnet_cidr
-  availability_zone       = var.availability_zone
-  map_public_ip_on_launch = true
-  tags                    = merge(local.common_tags, { Name = "${var.project_name}-public-subnet" })
-}
-
-resource "aws_subnet" "private" {
-  vpc_id                  = aws_vpc.project.id
-  cidr_block              = var.private_subnet_cidr
-  availability_zone       = var.availability_zone
-  map_public_ip_on_launch = false
-  tags                    = merge(local.common_tags, { Name = "${var.project_name}-private-subnet" })
-}
-
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.project.id
-  tags   = merge(local.common_tags, { Name = "${var.project_name}-public-rt" })
-}
-
-resource "aws_route" "public_internet" {
-  route_table_id         = aws_route_table.public.id
-  destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.project.id
-}
-
-resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
-  route_table_id = aws_route_table.public.id
-}
-
-resource "aws_route_table" "private" {
-  vpc_id = aws_vpc.project.id
-  tags   = merge(local.common_tags, { Name = "${var.project_name}-private-rt" })
-}
-
-resource "aws_route_table_association" "private" {
-  subnet_id      = aws_subnet.private.id
-  route_table_id = aws_route_table.private.id
 }
 
 resource "aws_eip" "nat" {
@@ -87,57 +40,21 @@ resource "aws_eip" "nat" {
 resource "aws_nat_gateway" "private_egress" {
   count         = var.enable_nat_gateway ? 1 : 0
   allocation_id = aws_eip.nat[0].id
-  subnet_id     = aws_subnet.public.id
-  depends_on    = [aws_internet_gateway.project]
+  subnet_id     = var.public_subnet_id
   tags          = merge(local.common_tags, { Name = "${var.project_name}-nat" })
 }
 
 resource "aws_route" "private_nat" {
   count                  = var.enable_nat_gateway ? 1 : 0
-  route_table_id         = aws_route_table.private.id
+  route_table_id         = var.private_route_table_id
   destination_cidr_block = "0.0.0.0/0"
   nat_gateway_id         = aws_nat_gateway.private_egress[0].id
-}
-
-resource "aws_security_group" "web" {
-  name        = "${var.project_name}-web-sg"
-  description = "Public HTTP/HTTPS and administrator SSH for the web server."
-  vpc_id      = aws_vpc.project.id
-
-  ingress {
-    description = "Administrator SSH"
-    protocol    = "tcp"
-    from_port   = 22
-    to_port     = 22
-    cidr_blocks = [var.admin_cidr]
-  }
-  ingress {
-    description = "Public website HTTP"
-    protocol    = "tcp"
-    from_port   = 80
-    to_port     = 80
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    description = "Public website HTTPS"
-    protocol    = "tcp"
-    from_port   = 443
-    to_port     = 443
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  egress {
-    protocol    = "-1"
-    from_port   = 0
-    to_port     = 0
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = merge(local.common_tags, { Name = "${var.project_name}-web-sg" })
 }
 
 resource "aws_security_group" "bastion" {
   name        = "${var.project_name}-bastion-sg"
   description = "Administrator SSH to the bastion host."
-  vpc_id      = aws_vpc.project.id
+  vpc_id      = var.vpc_id
 
   ingress {
     description = "Administrator SSH"
@@ -157,15 +74,15 @@ resource "aws_security_group" "bastion" {
 
 resource "aws_security_group" "database" {
   name        = "${var.project_name}-database-sg"
-  description = "MySQL from the web server and SSH from the bastion only."
-  vpc_id      = aws_vpc.project.id
+  description = "MySQL from the existing web server and SSH from the bastion only."
+  vpc_id      = var.vpc_id
 
   ingress {
-    description     = "MySQL from web server security group"
+    description     = "MySQL from existing web server security group"
     protocol        = "tcp"
     from_port       = 3306
     to_port         = 3306
-    security_groups = [aws_security_group.web.id]
+    security_groups = [data.aws_security_group.web.id]
   }
   ingress {
     description     = "SSH from bastion security group"
@@ -184,8 +101,8 @@ resource "aws_security_group" "database" {
 }
 
 resource "aws_network_acl" "public" {
-  vpc_id     = aws_vpc.project.id
-  subnet_ids = [aws_subnet.public.id]
+  vpc_id     = var.vpc_id
+  subnet_ids = [var.public_subnet_id]
   tags       = merge(local.common_tags, { Name = "${var.project_name}-public-acl" })
 }
 
@@ -289,8 +206,8 @@ resource "aws_network_acl_rule" "public_out_ephemeral" {
 }
 
 resource "aws_network_acl" "private" {
-  vpc_id     = aws_vpc.project.id
-  subnet_ids = [aws_subnet.private.id]
+  vpc_id     = var.vpc_id
+  subnet_ids = [var.private_subnet_id]
   tags       = merge(local.common_tags, { Name = "${var.project_name}-private-acl" })
 }
 
@@ -363,7 +280,7 @@ resource "aws_network_acl_rule" "private_out_ephemeral" {
 resource "aws_instance" "database" {
   ami                         = data.aws_ssm_parameter.al2023_ami.value
   instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.private.id
+  subnet_id                   = var.private_subnet_id
   vpc_security_group_ids      = [aws_security_group.database.id]
   key_name                    = var.key_name
   associate_public_ip_address = false
@@ -382,33 +299,10 @@ resource "aws_instance" "database" {
   tags = merge(local.common_tags, { Name = "${var.project_name}-database" })
 }
 
-resource "aws_instance" "web" {
-  ami                         = data.aws_ssm_parameter.al2023_ami.value
-  instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.web.id]
-  key_name                    = var.key_name
-  associate_public_ip_address = true
-  user_data = templatefile("${path.module}/templates/web-user-data.sh.tftpl", {
-    database_private_ip = aws_instance.database.private_ip
-  })
-  user_data_replace_on_change = true
-
-  metadata_options {
-    http_tokens = "required"
-  }
-  root_block_device {
-    volume_type = "gp3"
-    volume_size = 8
-    encrypted   = true
-  }
-  tags = merge(local.common_tags, { Name = "${var.project_name}-web" })
-}
-
 resource "aws_instance" "bastion" {
   ami                         = data.aws_ssm_parameter.al2023_ami.value
   instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
+  subnet_id                   = var.public_subnet_id
   vpc_security_group_ids      = [aws_security_group.bastion.id]
   key_name                    = var.key_name
   associate_public_ip_address = true
